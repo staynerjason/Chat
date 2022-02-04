@@ -5,6 +5,10 @@
 
 ##### Then run two instances of the > client.py file 
 
+##### To close the client conncection send the "!disconnect" message and the connection will be closed.
+
+##### To stop the server use a Keyboard Interupt (CTL+C) to shut down the server.
+
 these two clients will be the ones communitcating, the server just handles the events and logs the chat.
 
 run the file and input a Nickname to use as a username.
