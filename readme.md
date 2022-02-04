@@ -3,7 +3,9 @@
 
 ##### To run this project run the  > server.py file first. 
 
-##### Then run the > client.py file 
+##### Then run two instances of the > client.py file 
+
+these two clients will be the ones communitcating, the server just handles the events and logs the chat.
 
 run the file and input a Nickname to use as a username.
 the server will check if the nick is already in use and return a unable to connect code.
