@@ -20,4 +20,4 @@ The server should dynamicly retrive the local IP address, then start the server 
 this server client combo are build completely from standard python packages.
 
 Author: Jason Stayner
-2022# Chat
+2022
