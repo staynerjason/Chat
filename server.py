@@ -3,39 +3,37 @@ import threading
 
 
 class Server:
-    """This class handles the conncection of clients, broadcasting of client messeges and handling the nickname namespace."""
+    """This class handles the conncection of clients, 
+    broadcasting of client messeges and handling the nickname namespace."""
     def __init__(self):
         """Initialize attributes needed for the server"""
         self.PORT: int = 5050
         self.SERVER: str = socket.gethostbyname(socket.gethostname())
         self.ADDR: tuple = (self.SERVER, self.PORT)
         self.FORMAT: str = "utf-8"
-        self.HEADER: int = 64
-        self.DISCONNECT_MSG: str = "!DISCONNECT"
-        self.ACCEPTED:str = str(200)
-        self.REJECTED:str = str(400)
-
+        
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.bind(self.ADDR)
-
         self.nicknames:set = set()
         self.clients: set = set()
         self.clients_lock = threading.Lock()
+        self.server.bind(self.ADDR)
 
     def handle_client(self, conn, nickname):
         """this method takes in a client thead and handles the incoming messages,
         as well as broadcasting the messages to all the other clients."""
+        HEADER: int = 64
+        DISCONNECT_MSG: str = "!DISCONNECT"
         try:
             connected = True
             conn.send(
                 f"[CONNECTED] Connection successful! Welcome {nickname}.".encode(self.FORMAT))
             while connected:
-                msg_length = conn.recv(self.HEADER).decode(self.FORMAT)
+                msg_length = conn.recv(HEADER).decode(self.FORMAT)
                 if msg_length:
                     msg = conn.recv(int(msg_length)).decode(self.FORMAT)
                     if not msg:
                         break
-                    if msg == self.DISCONNECT_MSG:
+                    if msg == DISCONNECT_MSG:
                         break
                     print(f"[{nickname}] {msg}")
                     self.broadcast(nickname, msg)
@@ -64,16 +62,19 @@ class Server:
 
     def start(self):
         """this method acts as the server main loop, waiting for incomming connections, 
-        then handling the initialzation of the client as a new thread and passing the client to the handle client method"""
+        then handling the initialzation of the client as a new thread, 
+        and passing the client to the handle client method"""
         print(f"[STARTING] server is starting @ {self.SERVER}")
         self.server.listen()
+        ACCEPTED= str(200)
+        REJECTED = str(400)
         while True:
             conn, _ = self.server.accept()
-            nickname = conn.recv(self.HEADER).decode(self.FORMAT).title()
+            nickname = conn.recv(64).decode(self.FORMAT).title()
             if self.bad_nickname(nickname):
-                conn.send(self.REJECTED.encode(self.FORMAT))
+                conn.send(REJECTED.encode(self.FORMAT))
                 continue
-            conn.send(self.ACCEPTED.encode(self.FORMAT))
+            conn.send(ACCEPTED.encode(self.FORMAT))
             self.broadcast("SERVER", f"{nickname} joined the chat...")
             with self.clients_lock:
                 self.clients.add(conn)
