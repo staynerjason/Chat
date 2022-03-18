@@ -5,7 +5,7 @@
 
 ##### Then run two instances of the > client.py file 
 
-##### To close the client conncection send the "!disconnect" message and the connection will be closed.
+##### To close the client conncection use a Keyboard Interrupt (CTL+C) and the connection will be closed.
 
 ##### To stop the server use a Keyboard Interrupt (CTL+C) to shut down the server.
 
