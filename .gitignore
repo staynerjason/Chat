@@ -1,1 +1,4 @@
 refactored_chat/server_log.log
+refactored_chat/__pycache__/logger.cpython-39.pyc
+refactored_chat/__pycache__/message.cpython-39.pyc
+refactored_chat/__pycache__/response_code.cpython-39.pyc
