@@ -1,92 +1,92 @@
+import datetime
 import socket
 import threading
 
+from logger import logger
+from message import Message
+from response_code import ResponseCode
+
 
 class Server:
-    """This class handles the conncection of clients, 
-    broadcasting of client messeges and handling the nickname namespace."""
-    def __init__(self):
-        """Initialize attributes needed for the server"""
-        self.PORT: int = 5050
-        self.SERVER: str = socket.gethostbyname(socket.gethostname())
-        self.ADDR: tuple = (self.SERVER, self.PORT)
-        self.FORMAT: str = "utf-8"
-        
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.nicknames:set = set()
-        self.clients: set = set()
-        self.clients_lock = threading.Lock()
-        self.server.bind(self.ADDR)
+    """A class that handles user conncetion and servers messages to all the clients."""
+    PORT: int = 5050
+    SERVER: str = socket.gethostbyname(socket.gethostname())
+    ADDR: tuple = (SERVER, PORT)
+    FORMAT: str = "utf-8"
+    DISCONNECT_MSG: str = "!DISCONNECT"
 
-    def handle_client(self, conn, nickname):
-        """this method takes in a client thead and handles the incoming messages,
-        as well as broadcasting the messages to all the other clients."""
-        HEADER: int = 64
-        DISCONNECT_MSG: str = "!DISCONNECT"
+    def __init__(self) -> None:
+        """initializes the server and some cointiners for users and nicknames."""
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.bind(self.ADDR)
+        self.nicknames: set = set()
+        self.clients: set[socket.socket] = set()
+        self.clients_lock = threading.Lock()
+    
+    def bad_nickname(self, nickname) -> bool:
+        """Checks if the provided nickname matches a nickname already registered,
+        returns True if it is, otherwise adds the nickname to the list and returns False."""
+        if nickname in self.nicknames:
+            return True
+        else:
+            self.nicknames.add(nickname)
+            return False
+    
+    def broadcast(self, nickname, msg) -> None:
+        """Takes a nickname and message, then sends it to all the clients in the client set."""
+        with self.clients_lock:
+            for c in self.clients:
+                c.sendall("{} [{}] {}".format(
+                    datetime.datetime.now().strftime("%H:%M:%S"), nickname, msg)
+                    .encode(Message.FORMAT))
+
+    def handle_client(self, conn: socket.socket, nickname: str) -> None:
+        """Acts the client thread, handling all the message, and disconnect events."""
         try:
-            connected = True
             conn.send(
-                f"[CONNECTED] Connection successful! Welcome {nickname}.".encode(self.FORMAT))
+                "{} [CONNECTED] Connection successful! Welcome {}.".format(
+                    datetime.datetime.now().strftime("%H:%M:%S"), nickname)
+                    .encode(Message.FORMAT))
+            connected = True
+            message = Message()
             while connected:
-                msg_length = conn.recv(HEADER).decode(self.FORMAT)
-                if msg_length:
-                    msg = conn.recv(int(msg_length)).decode(self.FORMAT)
-                    if not msg:
-                        break
-                    if msg == DISCONNECT_MSG:
-                        break
-                    print(f"[{nickname}] {msg}")
-                    self.broadcast(nickname, msg)
+                message_len = conn.recv(64)
+                if not message_len:continue
+                header = message_len.decode(Message.FORMAT)
+                message.body = conn.recv(int(header)).decode(Message.FORMAT)
+                if not message.body:break
+                if message.body == self.DISCONNECT_MSG:break
+                logger.info(f"[{nickname}] {message.body}")
+                self.broadcast(nickname, message.body)
+        except ConnectionResetError:
+            logger.warning(f"[ERROR] Connection reset by {nickname}'s client.")
         finally:
             with self.clients_lock:
                 self.clients.remove(conn)
             conn.close()
             self.nicknames.remove(nickname)
-            print(f"[SERVER] {nickname} Disconnected...")
-            print(f"[ACTIVE CONNECTIONS] {self.active_connections - 1}")
+            logger.info(f"[SERVER] {nickname} Disconnected...")
+            logger.info("[ACTIVE CONNECTIONS] {}".format(len(self.clients)))
             self.broadcast("SERVER", f"{nickname} Disconnected...")
 
-    def broadcast(self, nickname, msg):
-        """this method takes in a client nickname and the message, 
-        then sends the messages to all the client threads in the client set."""
-        with self.clients_lock:
-            for c in self.clients:
-                c.sendall(f"[{nickname}] {msg}".encode(self.FORMAT))
-
-    def bad_nickname(self, nickname):
-        """this method verify that the nickname of the new connection is not in the nicknames set already.
-        If the nickname is not in the set, then the nick name will be added to the set."""
-        if nickname in self.nicknames:
-            return True
-        else:self.nicknames.add(nickname)
-
-    def start(self):
-        """this method acts as the server main loop, waiting for incomming connections, 
-        then handling the initialzation of the client as a new thread, 
-        and passing the client to the handle client method"""
-        print(f"[STARTING] server is starting @ {self.SERVER}")
+    def start(self) -> None:
+        """Start the server listening for client connections, and handles new connections."""
+        logger.info(f"[STARTING] server is starting @ {self.SERVER}")
         self.server.listen()
-        ACCEPTED= str(200)
-        REJECTED = str(400)
         while True:
             conn, _ = self.server.accept()
-            nickname = conn.recv(64).decode(self.FORMAT).title()
+            nickname = conn.recv(Message.HEADER).decode(Message.FORMAT).title()
             if self.bad_nickname(nickname):
-                conn.send(REJECTED.encode(self.FORMAT))
+                conn.send(str(ResponseCode.REJECTED.name).encode(Message.FORMAT))
                 continue
-            conn.send(ACCEPTED.encode(self.FORMAT))
+            conn.send(str(ResponseCode.ACCEPTED.name).encode(Message.FORMAT))
             self.broadcast("SERVER", f"{nickname} joined the chat...")
             with self.clients_lock:
                 self.clients.add(conn)
-            thread = threading.Thread(target=self.handle_client, args=(conn, nickname))
+            thread = threading.Thread(target=self.handle_client, args=(conn, nickname), daemon=True)
             thread.start()
-            print(f"[NEW CONNECTION] {nickname} Connected...")
-            self.active_connections = threading.activeCount() - 1
-            print(f"[ACTIVE CONNECTIONS] {self.active_connections}")
-
-    def stop(self):    
-        print("\033[1A")
-        print("[STOPPING] server stopped...goodbye")
+            logger.info(f"[NEW CONNECTION] {nickname} Connected...")
+            logger.info("[ACTIVE CONNECTIONS] {}".format(len(self.clients)))
 
 
 if __name__ == "__main__":
@@ -94,4 +94,5 @@ if __name__ == "__main__":
         server = Server()
         server.start()
     except KeyboardInterrupt:
-        server.stop()
+        print("\033[1A")
+        logger.info("[STOPPING] server stopped...goodbye")
